@@ -515,6 +515,9 @@ struct mbedtls_ssl_handshake_params
 #endif /* MBEDTLS_SSL_TLS13_COMPATIBILITY_MODE */
 #endif /* MBEDTLS_SSL_PROTO_TLS1_3_EXPERIMENTAL */
 
+    const uint16_t *group_list;
+    unsigned char group_list_heap_allocated;
+
 #if defined(MBEDTLS_SSL_PROTO_TLS1_2) && \
     defined(MBEDTLS_KEY_EXCHANGE_WITH_CERT_ENABLED)
     mbedtls_ssl_sig_hash_set_t hash_algs;             /*!<  Set of suitable sig-hash pairs */
@@ -2050,5 +2053,15 @@ int mbedtls_ssl_finish_handshake_msg( mbedtls_ssl_context *ssl,
 
 #endif /* MBEDTLS_SSL_PROTO_TLS1_3_EXPERIMENTAL */
 
+static inline const void *mbedtls_get_supported_groups( const mbedtls_ssl_context *ssl )
+{
+    if ( ssl->handshake != NULL )
+    #if defined(MBEDTLS_DEPRECATED_REMOVED) || !defined(MBEDTLS_ECP_C)
+        return( ssl->conf->supported_groups );
+    #else
+        return( ssl->handshake->group_list );
+    #endif
+    return NULL;
+}
 
 #endif /* ssl_misc.h */
