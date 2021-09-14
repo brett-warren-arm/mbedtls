@@ -538,6 +538,10 @@ struct mbedtls_ssl_handshake_params
 #endif /* MBEDTLS_USE_PSA_CRYPTO */
 #endif /* MBEDTLS_ECDH_C || MBEDTLS_ECDSA_C */
 
+#if defined(MBEDTLS_LIBOQS_ENABLE)
+    mbedtls_oqs_kem_ctx oqs_ctx;
+#endif
+
 #if defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
     mbedtls_ecjpake_context ecjpake_ctx;        /*!< EC J-PAKE key exchange */
 #if defined(MBEDTLS_SSL_CLI_C)
