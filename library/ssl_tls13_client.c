@@ -1236,25 +1236,37 @@ static int ssl_gen_and_write_ecdhe_share( mbedtls_ssl_context *ssl,
     return( 0 );
 }
 
-static uint16_t ssl_get_default_group_id( mbedtls_ssl_context *ssl )
-{
-    const mbedtls_ecp_curve_info *curve_info;
-    /* Pick first entry of curve list.
-     *
-     * TODO: When we introduce PQC KEMs, we'll have a NamedGroup
-     *       list instead, and can just return its first element. */
+#endif /* MBEDTLS_ECDH_C || MBEDTLS_ECDSA_C */
 
-    mbedtls_ecp_group_id curve_id = ssl->conf->curve_list[0];
-    if( curve_id == MBEDTLS_ECP_DP_NONE )
-        return( 0 );
+#if defined(MBEDTLS_LIBOQS_ENABLE)
 
+static int ssl_gen_and_write_pqc_share( mbedtls_ssl_context *ssl, uint16_t named_group,
+                                        unsigned char *key_share, unsigned char *end,
+                                        size_t *share_len ) {
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
 
-    curve_info = mbedtls_ecp_curve_info_from_grp_id( curve_id );
-    if( curve_info == 0 )
-        return( 0 );
+    if( ( ret = mbedtls_oqs_kem_setup(ssl->kem, named_group) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_oqs_kem_setup", ret );
+        return( ret );
+    }
 
-    return( curve_info->tls_id );
+    if( ( ret = mbedtls_gen_keypair(ssl->kem, ssl->private_key, ssl->public_key) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_gen_keypair", ret );
+        return( ret );
+    }
+
+    if( ( ret = mbedtls_copy_byte_string(ssl->public_key, ssl->kem->length_public_key, key_share, end - key_share) ) != 0 )
+    {
+        MBEDTLS_SSL_DEBUG_RET( 1, "mbedtls_copy_byte_string", ret );
+        return( ret );
+    }
+
+    *share_len = ssl->kem->length_public_key;
+    return( 0 );
 }
+#endif /** MBEDTLS_LIBOQS_ENABLE **/
 
 static int ssl_write_key_shares_ext( mbedtls_ssl_context *ssl,
                                      unsigned char* buf,
@@ -1279,14 +1291,11 @@ static int ssl_write_key_shares_ext( mbedtls_ssl_context *ssl,
 
     MBEDTLS_SSL_DEBUG_MSG( 3, ( "client hello, adding key share extension" ) );
 
-    if( !mbedtls_ssl_conf_tls13_some_ecdhe_enabled( ssl ) )
-        return( 0 );
-
     /* By default, offer topmost entry in the curve list, but an HRR
      * could already have requested something else. */
     group_id = ssl->handshake->named_group_id;
     if( group_id == 0 )
-        group_id = ssl_get_default_group_id( ssl );
+        group_id = *(uint16_t *)mbedtls_get_supported_groups( ssl );
 
     /*
      * Dispatch to type-specific key generation function.
@@ -1296,21 +1305,25 @@ static int ssl_write_key_shares_ext( mbedtls_ssl_context *ssl,
      * type of KEM, and dispatch to the corresponding crypto.
      */
 
-    if( mbedtls_ssl_named_group_is_ecdhe( group_id ) )
-    {
-        /* Skip over NamedGroup value and share length bytes */
-        unsigned char * const key_share = key_share_entry + 4;
-        ret = ssl_gen_and_write_ecdhe_share( ssl, group_id,
-                                             key_share, end, &share_len );
-        if( ret != 0 )
-            return( ret );
-    }
-    else if( 0 /* other KEMs? */ )
-    {
-        /* Do something */
-    }
+    /* Skip over NamedGroup value and share length bytes */
+    unsigned char * const key_share = key_share_entry + 4;
+    #if defined(MBEDTLS_ECP_C)
+    if( mbedtls_ecp_get_curve_info_from_tls_id( group_id ) )
+            ret = ssl_gen_and_write_ecdhe_share( ssl, group_id,
+                                                 key_share, end, &share_len );
     else
-        return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
+    #endif
+    #if defined(MBEDTLS_ENABLE_LIBOQS)
+    if( mbedtls_kem_info_from_tls_id( group_id )
+            ret = ssl_gen_and_write_pqc_share( ssl, group_id,
+                                               key_share, end, &share_len );
+    else
+    #endif
+            ret = MBEDTLS_ERR_SSL_INTERNAL_ERROR;
+    }
+
+    if( ret != 0 )
+        return( ret );
 
     /* Write group ID */
     *key_share_entry++ = ( group_id >> 8 ) & 0xFF;
@@ -1337,8 +1350,6 @@ static int ssl_write_key_shares_ext( mbedtls_ssl_context *ssl,
     ssl->handshake->named_group_id = group_id;
     return( 0 );
 }
-
-#endif /* MBEDTLS_ECDH_C || MBEDTLS_ECDSA_C */
 
 /* Main entry point; orchestrates the other functions */
 static int ssl_client_hello_process( mbedtls_ssl_context* ssl );
