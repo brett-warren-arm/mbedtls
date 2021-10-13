@@ -545,7 +545,6 @@ struct options
     int reproducible;           /* make communication reproducible          */
     int skip_close_notify;      /* skip sending the close_notify alert      */
     const char *named_groups_string;           /* list of named groups      */
-    const char *key_share_named_groups_string; /* list of named groups      */
     int key_exchange_modes;     /* supported key exchange modes             */
     const char *sig_algs;       /* supported signature algorithms           */
     int early_data;             /* support for early data                   */
@@ -1199,8 +1198,6 @@ int main( int argc, char *argv[] )
 #if defined(MBEDTLS_ECP_C)
         else if( strcmp( p, "named_groups" ) == 0 )
             opt.named_groups_string = q;
-        else if( strcmp( p, "key_share_named_groups" ) == 0 )
-            opt.key_share_named_groups_string = q;
 #endif /* MBEDTLS_ECP_C */
 
         else if( strcmp( p, "key_exchange_modes" ) == 0 )
