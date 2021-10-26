@@ -47,6 +47,14 @@
 #define GROUPID_sike_p751 0x0222
 
 /*
+ * Lightweight info struct for kem
+ */
+typedef struct mbedtls_kem_info {
+    const uint16_t tls_id;
+    const char *name;
+} mbedtls_kem_info;
+
+/*
  * Holds libOQS OQS_KEM struct, and additional fields to hold keys
  */
 typedef struct mbedtls_oqs_kem_ctx {
@@ -56,6 +64,26 @@ typedef struct mbedtls_oqs_kem_ctx {
     uint8_t* ciphertext;
     uint8_t* shared_secret;
 } mbedtls_oqs_kem_ctx;
+
+
+/* TODO NEED TO INTEGRATE LIBOQS ENABLE MACROS TO CONTROL WHAT IS INCLUDED */
+/**
+ * \brief           Returns supported libOQS KEMs
+ *
+ * \return          Array of supported mbedtls_kem_info structs
+ */
+const mbedtls_kem_info *mbedtls_get_kem_list( void );
+
+
+/* TODO NEED TO INTEGRATE LIBOQS ENABLE MACROS TO CONTROL WHAT IS INCLUDED */
+/**
+ * \brief           Returns mbedtls_kem_info corresponding to provided
+ *                  IANA TLS group id.
+ *
+ * \return          mbedtls_kem_info if provided id is supported, otherwise
+ *                  NULL.
+ */
+const mbedtls_kem_info *mbedtls_kem_info_from_tls_id( uint16_t tls_id )
 
 /**
  * \brief           This function initialises the provided medtls_oqs_kem_ctx struct.
