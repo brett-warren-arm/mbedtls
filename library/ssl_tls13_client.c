@@ -1070,33 +1070,35 @@ static int ssl_write_supported_groups_ext( mbedtls_ssl_context *ssl,
                                           size_t* olen )
 {
     unsigned char *p = buf;
-    unsigned char *elliptic_curve_list = p + 6;
+    unsigned char *group_list = p + 6;
     size_t elliptic_curve_len = 0;
     const mbedtls_ecp_curve_info *info;
-#if defined(MBEDTLS_ECP_C)
-    const mbedtls_ecp_group_id *grp_id;
-#else
-    ((void) ssl);
-#endif
+    const uint16_t *tls_id;
 
     *olen = 0;
 
-    if( !mbedtls_ssl_conf_tls13_some_ecdhe_enabled( ssl ) )
-        return( 0 );
+    MBEDTLS_SSL_DEBUG_MSG( 3, ( "client hello, adding supported_groups extension" ) );
 
-#if defined(MBEDTLS_ECP_C)
-    for ( grp_id = ssl->conf->curve_list;
-          *grp_id != MBEDTLS_ECP_DP_NONE;
-          grp_id++ )
+    for ( tls_id = mbedtls_ssl_get_groups(); *tls_id != 0; tls_id++ )
     {
-/*		info = mbedtls_ecp_curve_info_from_grp_id( *grp_id ); */
-#else
-    for ( info = mbedtls_ecp_curve_list();
-          info->grp_id != MBEDTLS_ECP_DP_NONE;
-          info++ )
-    {
-#endif
+        #if defined(MBEDTLS_ECP_C)
+		valid_group |= if mbedtls_ecp_curve_info_from_tls_id( *tls_id ) ? 1 : 0;
+        #endif
+        #if defined(MBEDTLS_LIBOQS_ENABLE)
+		valid_group |= if mbedtls_kem_info_from_tls_id( *tls_id ) ? 1 : 0;
+        #endif
+
+        if (!valid_group)
+            return ( MBEDTLS_ERR_SSL_BAD_CONFIG );
+
+        /* Check there is room for another group */
+        MBEDTLS_SSL_CHK_BUF_PTR( group_list, end, elliptic_curve_len + 2 );
+
+        MBEDTLS_PUT_UINT16_BE( *tls_id, group_list, elliptic_curve_len );
         elliptic_curve_len += 2;
+        MBEDTLS_SSL_DEBUG_MSG( 4, ( "Named Curve: %s ( %x )",
+                  mbedtls_ecp_curve_info_from_tls_id( info->tls_id )->name,
+                  info->tls_id ) );
     }
 
     if( elliptic_curve_len == 0 )
@@ -1104,38 +1106,6 @@ static int ssl_write_supported_groups_ext( mbedtls_ssl_context *ssl,
         /* If we have no curves configured then we are in trouble. */
         MBEDTLS_SSL_DEBUG_MSG( 1, ( "No curves configured." ) );
         return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
-    }
-
-    if( end < p || (size_t)( end - p ) < 6 + elliptic_curve_len )
-    {
-        MBEDTLS_SSL_DEBUG_MSG( 1, ( "buffer too small" ) );
-        return( MBEDTLS_ERR_SSL_BUFFER_TOO_SMALL );
-    }
-
-    MBEDTLS_SSL_DEBUG_MSG( 3, ( "client hello, adding supported_groups extension" ) );
-
-    elliptic_curve_len = 0;
-
-#if defined(MBEDTLS_ECP_C)
-    for ( grp_id = ssl->conf->curve_list;
-          *grp_id != MBEDTLS_ECP_DP_NONE;
-          grp_id++ )
-    {
-        info = mbedtls_ecp_curve_info_from_grp_id( *grp_id );
-
-        if( info == NULL )
-            return( MBEDTLS_ERR_SSL_INTERNAL_ERROR );
-#else
-    for ( info = mbedtls_ecp_curve_list();
-          info->grp_id != MBEDTLS_ECP_DP_NONE;
-          info++ )
-    {
-#endif
-        elliptic_curve_list[elliptic_curve_len++] = info->tls_id >> 8;
-        elliptic_curve_list[elliptic_curve_len++] = info->tls_id & 0xFF;
-        MBEDTLS_SSL_DEBUG_MSG( 4, ( "Named Curve: %s ( %x )",
-                  mbedtls_ecp_curve_info_from_tls_id( info->tls_id )->name,
-                  info->tls_id ) );
     }
 
     *p++ = (unsigned char)( ( MBEDTLS_TLS_EXT_SUPPORTED_GROUPS >> 8 ) & 0xFF );

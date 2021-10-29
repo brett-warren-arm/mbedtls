@@ -554,7 +554,7 @@ struct mbedtls_ssl_handshake_params
 #endif /* MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED */
 #if defined(MBEDTLS_ECDH_C) || defined(MBEDTLS_ECDSA_C) || \
     defined(MBEDTLS_KEY_EXCHANGE_ECJPAKE_ENABLED)
-    const mbedtls_ecp_curve_info **curves;      /*!<  Supported elliptic curves */
+    const uint16_t *groups;      /*!<  Supported elliptic curves */
 #endif
 #if defined(MBEDTLS_KEY_EXCHANGE_SOME_PSK_ENABLED)
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
